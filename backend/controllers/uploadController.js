@@ -12,13 +12,26 @@ exports.uploadVideo = async (req, res) => {
       });
     }
 
+    let duration = req.file.duration || 0;
+
+    // If duration is not provided by multer-storage-cloudinary, try to fetch it via Cloudinary API
+    if (!duration) {
+      try {
+        const { cloudinary } = require('../utils/cloudinary');
+        const result = await cloudinary.api.resource(req.file.filename, { resource_type: 'video' });
+        duration = Math.round(result.duration || 0);
+      } catch (error) {
+        console.error('Error fetching video metadata from Cloudinary:', error);
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: 'Video uploaded successfully',
       data: {
         url: req.file.path,
         publicId: req.file.filename,
-        duration: req.file.duration || 0,
+        duration: duration,
         format: req.file.format
       }
     });

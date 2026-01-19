@@ -16,6 +16,7 @@ const CreateCourse = () => {
     category: 'Web Development',
     level: 'Beginner',
     thumbnail: '',
+    price: 0,
   });
 
   const categories = [
@@ -211,7 +212,7 @@ const CreateCourse = () => {
                 )}
               </div>
 
-              <div className="grid md:grid-cols-2 gap-10">
+              <div className="grid md:grid-cols-3 gap-10">
                 {/* Category */}
                 <div>
                   <label className="flex items-center text-sm font-bold text-surface-700 mb-4 pl-1">
@@ -248,6 +249,25 @@ const CreateCourse = () => {
                       <option key={lvl} value={lvl}>{lvl} Level</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Price */}
+                <div>
+                  <label className="flex items-center text-sm font-bold text-surface-700 mb-4 pl-1">
+                    <span className="mr-2 text-primary-600 text-lg">$</span>
+                    Course Price
+                  </label>
+                  <input
+                    type="number"
+                    name="price"
+                    value={formData.price}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    className="w-full bg-surface-50 border-2 border-surface-100 rounded-2xl py-5 px-6 focus:bg-white focus:border-primary-500 focus:outline-none transition-all font-bold text-surface-700"
+                    placeholder="0.00"
+                    required
+                  />
                 </div>
               </div>
 

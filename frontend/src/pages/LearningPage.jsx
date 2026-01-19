@@ -20,13 +20,9 @@ const LearningPage = () => {
 
   const fetchCourseData = async () => {
     try {
-      const [courseRes, progressRes] = await Promise.all([
-        getCourseById(courseId),
-        getCourseProgress(courseId)
-      ]);
-
-      const courseData = courseRes.data.course;
+      const progressRes = await getCourseProgress(courseId);
       const enrollmentData = progressRes.data.enrollment;
+      const courseData = enrollmentData.course;
 
       setCourse(courseData);
       setEnrollment(enrollmentData);
@@ -44,7 +40,7 @@ const LearningPage = () => {
       }
     } catch (error) {
       console.error('Error fetching course data:', error);
-      navigate('/courses');
+      navigate('/student/dashboard');
     } finally {
       setLoading(false);
     }
@@ -77,13 +73,9 @@ const LearningPage = () => {
       // For Cloudinary videos, we can ensure they are delivered optimally
       let finalUrl = secureUrl;
       if (isCloudinaryVideo) {
-        // We can insert f_auto,q_auto transformations for better delivery if not already transformed
-        if (!secureUrl.includes('/f_auto')) {
+        // If it doesn't already have transformations, add them
+        if (!secureUrl.includes('/upload/v') && !secureUrl.includes('/upload/f_auto')) {
           finalUrl = secureUrl.replace('/upload/', '/upload/f_auto,q_auto/');
-        }
-        // Always ensure an mp4 extension for the video tag's primary source
-        if (!finalUrl.endsWith('.mp4')) {
-          finalUrl = finalUrl.includes('?') ? finalUrl.replace('?', '.mp4?') : `${finalUrl}.mp4`;
         }
       }
 
@@ -94,10 +86,10 @@ const LearningPage = () => {
           key={finalUrl}
           playsInline
           crossOrigin="anonymous"
-          preload="metadata"
+          preload="auto"
+          autoPlay
         >
-          <source src={finalUrl} type="video/mp4" />
-          <source src={secureUrl} />
+          <source src={finalUrl} />
           Your browser does not support the video tag.
         </video>
       );

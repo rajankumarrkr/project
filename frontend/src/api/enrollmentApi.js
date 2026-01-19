@@ -42,3 +42,14 @@ export const getEnrollmentProgress = async (enrollmentId) => {
   const response = await axios.get(`/progress/${enrollmentId}`);
   return response.data;
 };
+
+// Razorpay Payment APIs
+export const createPaymentOrder = async (courseId) => {
+  const response = await axios.post(`/enrollments/create-order/${courseId}`);
+  return response.data;
+};
+
+export const verifyPayment = async (paymentData) => {
+  const response = await axios.post('/enrollments/verify-payment', paymentData);
+  return response.data;
+};

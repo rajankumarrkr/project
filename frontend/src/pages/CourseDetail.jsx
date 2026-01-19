@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getCourseById } from '../api/courseApi';
-import { enrollInCourse, checkEnrollment } from '../api/enrollmentApi';
+import { enrollInCourse, checkEnrollment, createPaymentOrder, verifyPayment } from '../api/enrollmentApi';
 import { useAuth } from '../context/AuthContext';
 import { FiBook, FiUser, FiClock, FiVideo, FiCheckCircle, FiArrowLeft, FiStar, FiFileText, FiShare2, FiHeart } from 'react-icons/fi';
 
@@ -55,9 +55,49 @@ const CourseDetail = () => {
 
     setEnrolling(true);
     try {
-      await enrollInCourse(id);
-      setIsEnrolled(true);
-      navigate('/student/dashboard');
+      if (course.price === 0) {
+        // Free enrollment
+        await enrollInCourse(id);
+        setIsEnrolled(true);
+        navigate('/student/dashboard');
+      } else {
+        // Paid enrollment via Razorpay
+        const orderRes = await createPaymentOrder(id);
+        const { order } = orderRes.data;
+
+        const options = {
+          key: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_S54XCox6Z3ZcVf',
+          amount: order.amount,
+          currency: order.currency,
+          name: "Coursify",
+          description: `Enrollment for ${course.title}`,
+          order_id: order.id,
+          handler: async (response) => {
+            try {
+              const verifyRes = await verifyPayment({
+                ...response,
+                courseId: id
+              });
+              if (verifyRes.success) {
+                setIsEnrolled(true);
+                navigate('/student/dashboard');
+              }
+            } catch (error) {
+              alert(error.response?.data?.message || 'Payment verification failed');
+            }
+          },
+          prefill: {
+            name: "", // You can get this from auth context if needed
+            email: "",
+          },
+          theme: {
+            color: "#4f46e5",
+          },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      }
     } catch (error) {
       alert(error.response?.data?.message || 'Failed to enroll');
     } finally {
@@ -175,8 +215,10 @@ const CourseDetail = () => {
                 <div className="p-8">
                   <div className="flex items-center justify-between mb-8">
                     <div>
-                      <p className="text-3xl font-bold text-surface-900">$0.00</p>
-                      <p className="text-sm text-green-600 font-bold">100% Free Access</p>
+                      <p className="text-3xl font-bold text-surface-900">${course.price ? (course.price).toFixed(2) : '0.00'}</p>
+                      <p className={`text-sm font-bold ${course.price > 0 ? 'text-primary-600' : 'text-green-600'}`}>
+                        {course.price > 0 ? 'Premium Access' : '100% Free Access'}
+                      </p>
                     </div>
                     <div className="flex items-center space-x-2">
                       <button className="p-3 bg-surface-50 text-surface-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all">

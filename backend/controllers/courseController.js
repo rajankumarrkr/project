@@ -7,7 +7,7 @@ const Lecture = require('../models/Lecture');
 // @access  Private (Instructor only)
 exports.createCourse = async (req, res) => {
   try {
-    const { title, description, category, level, thumbnail, promoVideo } = req.body;
+    const { title, description, category, level, thumbnail, promoVideo, price } = req.body;
 
     if (!title || !description || !category || !level) {
       return res.status(400).json({
@@ -23,6 +23,7 @@ exports.createCourse = async (req, res) => {
       level,
       thumbnail,
       promoVideo,
+      price: price || 0,
       instructor: req.user._id,
       status: 'draft'
     });
@@ -48,7 +49,7 @@ exports.createCourse = async (req, res) => {
 exports.getAllCourses = async (req, res) => {
   try {
     const { search, category, level } = req.query;
-    
+
     let query = { status: 'published' };
 
     // Search by title or description
@@ -177,7 +178,7 @@ exports.updateCourse = async (req, res) => {
 
     course = await Course.findByIdAndUpdate(
       req.params.id,
-      { title, description, category, level, thumbnail, promoVideo },
+      { title, description, category, level, thumbnail, promoVideo, price },
       { new: true, runValidators: true }
     );
 

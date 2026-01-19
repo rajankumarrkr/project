@@ -1,6 +1,8 @@
 const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
 const User = require('../models/User');
+const razorpay = require('../utils/razorpay');
+const crypto = require('crypto');
 
 // @desc    Enroll in a course
 // @route   POST /api/enrollments/:courseId
@@ -40,7 +42,15 @@ exports.enrollInCourse = async (req, res) => {
       });
     }
 
-    // Create enrollment
+    // If course is paid, we don't enroll directly
+    if (course.price > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This is a paid course. Please initiate payment first.'
+      });
+    }
+
+    // Create enrollment (for free courses)
     const enrollment = await Enrollment.create({
       student: studentId,
       course: courseId,
@@ -115,12 +125,18 @@ exports.getCourseProgress = async (req, res) => {
     })
       .populate({
         path: 'course',
-        populate: {
-          path: 'sections',
-          populate: {
-            path: 'lectures'
+        populate: [
+          {
+            path: 'sections',
+            populate: {
+              path: 'lectures'
+            }
+          },
+          {
+            path: 'instructor',
+            select: 'name bio profileImage expertise'
           }
-        }
+        ]
       })
       .populate('completedLectures');
 
@@ -171,5 +187,84 @@ exports.checkEnrollment = async (req, res) => {
       message: 'Error checking enrollment',
       error: error.message
     });
+  }
+};
+
+// @desc    Create Razorpay Order
+// @route   POST /api/enrollments/create-order/:courseId
+// @access  Private (Student only)
+exports.createPaymentOrder = async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) {
+      return res.status(404).json({ success: false, message: 'Course not found' });
+    }
+
+    const options = {
+      amount: Math.round(course.price * 100), // Amount in paise
+      currency: 'INR',
+      receipt: `receipt_${Date.now()}`,
+    };
+
+    const order = await razorpay.orders.create(options);
+
+    res.status(200).json({
+      success: true,
+      data: { order }
+    });
+  } catch (error) {
+    console.error('Create order error:', error);
+    res.status(500).json({ success: false, message: 'Error creating payment order' });
+  }
+};
+
+// @desc    Verify Razorpay Payment and Enroll
+// @route   POST /api/enrollments/verify-payment
+// @access  Private (Student only)
+exports.verifyPayment = async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, courseId } = req.body;
+
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Invalid payment signature' });
+    }
+
+    // Payment verified, now enroll the student
+    const studentId = req.user._id;
+
+    // Check if already enrolled (to prevent double enrollment)
+    const existingEnrollment = await Enrollment.findOne({ student: studentId, course: courseId });
+    if (existingEnrollment) {
+      return res.status(200).json({ success: true, message: 'Already enrolled' });
+    }
+
+    const enrollment = await Enrollment.create({
+      student: studentId,
+      course: courseId,
+      progress: 0,
+      completedLectures: []
+    });
+
+    await User.findByIdAndUpdate(studentId, { $push: { enrolledCourses: courseId } });
+
+    const course = await Course.findById(courseId);
+    course.totalEnrollments += 1;
+    await course.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment verified and enrolled successfully',
+      data: { enrollment }
+    });
+
+  } catch (error) {
+    console.error('Verify payment error:', error);
+    res.status(500).json({ success: false, message: 'Error verifying payment' });
   }
 };
